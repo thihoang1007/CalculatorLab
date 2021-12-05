@@ -8,6 +8,8 @@ volatile uint8_t left_button_flag = 0;
 volatile uint8_t right_button_flag = 0;
 volatile uint8_t button_flag;
 volatile uint8_t key_press;
+volatile uint8_t key_press_flag;
+
 volatile unsigned long last_press = 0;
 unsigned long last_left_press = 0;
 unsigned long last_keypad_press = 0;
@@ -124,24 +126,30 @@ void handle_buttonpress() {
 }
 
 void handle_keypress() {
-
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  // If interrupts come faster than 200ms, assume it's a bounce and ignore
+  if (interrupt_time - last_interrupt_time > 500) {
+    key_press_flag = 1;
+    key_press = get_key_pressed();
+  }
+  last_interrupt_time = interrupt_time;
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  if (((millis() - last_press )) > 50 && button_flag) { // button press
-        if (((millis() - last_press )) > 50 && !right_button_flag) { //right button press
-          Serial.print("right button ");
-        } else if (((millis() - last_press )) > 50 && !left_button_flag) { // left button press
-          Serial.print("left button ");
-        }
+  if (button_flag) { // button press
+    if (!right_button_flag) { //right button press
+      Serial.print("right button ");
+    } else if (!left_button_flag) { // left button press
+      Serial.print("left button ");
+    }
     last_press = millis();
     button_flag = 0;
   }
 
-
-  //  if ((millis() - last_keypad_press ) > 500 && key_press < 15) {
-  //    Serial.println(key_press, HEX);
-  //    key_press = 0;
-  //  }
+  if (key_press_flag) { // key pressed
+    Serial.println(key_press, HEX);
+    key_press_flag = 0;
+  }
 }
