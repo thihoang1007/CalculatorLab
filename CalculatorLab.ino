@@ -4,6 +4,12 @@ struct gpio_registers *gpio;
 struct spi_registers *spi;
 struct timer_registers_16bit *timer1;
 volatile uint8_t *timer;
+volatile uint8_t left_button_flag = 0;
+volatile uint8_t right_button_flag = 0;
+volatile uint8_t button_flag;
+volatile uint8_t key_press;
+volatile unsigned long last_press = 0;
+unsigned long last_left_press = 0;
 unsigned long last_keypad_press = 0;
 
 const uint8_t keys[4][4] = {
@@ -37,7 +43,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(3), handle_keypress, CHANGE);
 }
 
-void setup_timer(){
+void setup_timer() {
   //every second
   timer1->control |= 0b0000110100000000;
   timer1->compareA = 15625;
@@ -75,11 +81,11 @@ uint8_t get_key_pressed() {
   unsigned long now = millis();
   if (now - last_keypad_press > 500) {
     last_keypad_press = now;
-    for(int i = 0; i < 4; i++){
+    for (int i = 0; i < 4; i++) {
       gpio[D0_D7].output |= 0b11110000;
-      gpio[D0_D7].output ^= (1<<(i+4));
-      for(int j = 0; j < 4; j++){
-        if(!(gpio[A0_A5].input & (1<<j))){
+      gpio[D0_D7].output ^= (1 << (i + 4));
+      for (int j = 0; j < 4; j++) {
+        if (!(gpio[A0_A5].input & (1 << j))) {
           key_pressed = keys[i][j];
         }
       }
@@ -94,25 +100,48 @@ void display_data(uint8_t address, uint8_t value) {
   // value is the bit pattern to place in the register
   gpio[D8_D13].output &= 0b11111011;
   spi->data = address;
-  while(!(spi->status & 0b10000000));
+  while (!(spi->status & 0b10000000));
   spi->data = value;
-  while(!(spi->status & 0b10000000));
+  while (!(spi->status & 0b10000000));
   gpio[D8_D13].output |= 0b00000100;
 }
 
-ISR(TIMER1_COMPA_vect){
+ISR(TIMER1_COMPA_vect) {
   //code for when timer interrupt occurs
 }
 
-void handle_buttonpress(){
-  
+void handle_buttonpress() {
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  // If interrupts come faster than 200ms, assume it's a bounce and ignore
+  if (interrupt_time - last_interrupt_time > 200) {
+    button_flag = 1;
+    left_button_flag = digitalRead(8);
+    right_button_flag = digitalRead(9);
+  }
+  last_interrupt_time = interrupt_time;
+
 }
 
-void handle_keypress(){
-  
+void handle_keypress() {
+
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+  if (((millis() - last_press )) > 50 && button_flag) { // button press
+        if (((millis() - last_press )) > 50 && !right_button_flag) { //right button press
+          Serial.print("right button ");
+        } else if (((millis() - last_press )) > 50 && !left_button_flag) { // left button press
+          Serial.print("left button ");
+        }
+    last_press = millis();
+    button_flag = 0;
+  }
 
+
+  //  if ((millis() - last_keypad_press ) > 500 && key_press < 15) {
+  //    Serial.println(key_press, HEX);
+  //    key_press = 0;
+  //  }
 }
